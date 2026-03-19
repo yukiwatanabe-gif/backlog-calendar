@@ -1,0 +1,12 @@
+{
+  "name": "backlog-calendar",
+  "version": "1.0.0",
+  "description": "Backlog issue calendar viewer",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

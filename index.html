@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Backlog カレンダー</title>
+  <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.css" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN", "Meiryo", sans-serif;
+      background: #f0f2f5;
+      color: #333;
+    }
+
+    /* ヘッダー */
+    header {
+      background: #fff;
+      border-bottom: 2px solid #e8eaed;
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    header h1 { font-size: 18px; font-weight: 700; flex: 1; color: #1a1a2e; letter-spacing: 0.02em; }
+    .header-btn {
+      background: #f0f2f5;
+      border: 1px solid #dde1e7;
+      color: #444;
+      border-radius: 8px;
+      padding: 7px 16px;
+      font-size: 13px;
+      cursor: pointer;
+      font-weight: 500;
+      transition: background 0.15s;
+    }
+    .header-btn:hover { background: #e2e5ea; }
+
+    /* 設定パネル */
+    #settings-panel {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.45);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+    #settings-panel.hidden { display: none; }
+    .settings-box {
+      background: #fff;
+      border-radius: 14px;
+      padding: 32px;
+      width: 460px;
+      max-width: 95vw;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.15);
+    }
+    .settings-box h2 { font-size: 17px; margin-bottom: 22px; color: #1a1a2e; }
+    .field { margin-bottom: 16px; }
+    .field label { display: block; font-size: 12px; font-weight: 700; margin-bottom: 6px; color: #666; text-transform: uppercase; letter-spacing: 0.05em; }
+    .field input {
+      width: 100%; border: 1.5px solid #e0e3e8; border-radius: 8px;
+      padding: 10px 14px; font-size: 14px; transition: border-color 0.2s;
+      background: #fafbfc;
+    }
+    .field input:focus { outline: none; border-color: #4f8ef7; background: #fff; }
+    .field small { display: block; margin-top: 5px; color: #aaa; font-size: 12px; }
+    .btn-primary {
+      width: 100%; background: #4f8ef7; color: #fff; border: none;
+      border-radius: 8px; padding: 12px; font-size: 15px; font-weight: 700;
+      cursor: pointer; margin-top: 8px; transition: background 0.2s;
+    }
+    .btn-primary:hover { background: #3a7de0; }
+    #error-msg {
+      background: #fff0f0; color: #c62828; border: 1px solid #fcc;
+      border-radius: 8px; padding: 10px 14px; margin: 10px 0;
+      font-size: 13px; display: none;
+    }
+
+    /* フィルターバー */
+    #filter-bar {
+      background: #fff;
+      border-bottom: 1px solid #e8eaed;
+      padding: 10px 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .filter-group { display: flex; align-items: center; gap: 6px; }
+    .filter-group label { font-size: 12px; font-weight: 700; color: #888; white-space: nowrap; text-transform: uppercase; letter-spacing: 0.04em; }
+    #filter-bar select {
+      border: 1.5px solid #e0e3e8; border-radius: 8px;
+      padding: 6px 12px; font-size: 13px; background: #fafbfc; cursor: pointer;
+      min-width: 120px;
+    }
+    #filter-bar select:focus { outline: none; border-color: #4f8ef7; }
+
+    /* 凡例 */
+    #legend {
+      display: flex; gap: 8px; flex-wrap: wrap;
+      margin-left: auto; align-items: center;
+    }
+    .legend-item {
+      display: flex; align-items: center; gap: 5px;
+      font-size: 12px; color: #555; padding: 3px 8px;
+      border-radius: 20px; background: #f5f6fa;
+      border: 1px solid #e8eaed;
+    }
+    .legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+    /* カレンダーエリア */
+    #calendar-wrapper { padding: 20px 24px; }
+    #loading { text-align: center; padding: 60px; color: #aaa; font-size: 15px; }
+    #loading.hidden { display: none; }
+
+    /* FullCalendar */
+    .fc {
+      background: #fff; border-radius: 12px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.06); padding: 20px;
+    }
+    .fc-event {
+      border: none !important; border-radius: 5px !important;
+      font-size: 11.5px !important; cursor: pointer; padding: 1px 4px !important;
+    }
+    .fc-event-title { font-weight: 600 !important; }
+    .fc-daygrid-event-dot { display: none; }
+    .fc-col-header-cell { font-size: 13px; font-weight: 700; color: #555; }
+    .fc-daygrid-day-number { font-size: 13px; color: #333; }
+
+    /* ポップアップ */
+    #issue-popup {
+      position: fixed; background: #fff; border-radius: 12px;
+      box-shadow: 0 8px 36px rgba(0,0,0,0.16); padding: 20px 22px;
+      max-width: 360px; width: 92vw; z-index: 500; display: none;
+    }
+    .popup-header { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 12px; }
+    .popup-type-bar { width: 4px; border-radius: 4px; flex-shrink: 0; align-self: stretch; min-height: 20px; }
+    .popup-title { font-size: 14px; font-weight: 700; line-height: 1.5; flex: 1; }
+    .popup-badge {
+      display: inline-block; padding: 2px 10px; border-radius: 20px;
+      font-size: 11px; font-weight: 700; color: #333; margin-bottom: 10px;
+    }
+    .popup-meta { font-size: 13px; color: #555; line-height: 2; }
+    .popup-meta strong { color: #333; }
+    .popup-time { font-size: 15px; font-weight: 700; color: #4f8ef7; margin-bottom: 8px; }
+    .popup-link {
+      display: inline-block; margin-top: 12px; color: #4f8ef7;
+      font-size: 13px; text-decoration: none; font-weight: 600;
+    }
+    .popup-link:hover { text-decoration: underline; }
+    .close-btn {
+      position: absolute; top: 12px; right: 14px;
+      background: none; border: none; font-size: 17px;
+      cursor: pointer; color: #bbb; line-height: 1;
+    }
+    .close-btn:hover { color: #888; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>📅 Backlog 配信カレンダー</h1>
+  <button class="header-btn" onclick="loadIssues()">🔄 更新</button>
+  <button class="header-btn" onclick="openSettings()">⚙️ 設定</button>
+</header>
+
+<!-- 設定パネル -->
+<div id="settings-panel">
+  <div class="settings-box">
+    <h2>⚙️ Backlog 接続設定</h2>
+    <div class="field">
+      <label>スペースURL</label>
+      <input type="text" id="space-url" placeholder="yourcompany.backlog.com">
+      <small>例: yogibo.backlog.com</small>
+    </div>
+    <div class="field">
+      <label>API キー</label>
+      <input type="password" id="api-key" placeholder="APIキーを貼り付け">
+      <small>Backlog → 個人設定 → API から発行</small>
+    </div>
+    <div class="field">
+      <label>プロジェクトキー（カンマ区切りで複数可）</label>
+      <input type="text" id="project-key" placeholder="例: PRYOGIBO">
+      <small>空欄の場合はすべてのプロジェクトを取得</small>
+    </div>
+    <div class="field">
+      <label>配信時間のカスタム属性名</label>
+      <input type="text" id="time-field-name" placeholder="例: 配信時間">
+      <small>Backlogのカスタム属性名を正確に入力（なければ空欄）</small>
+    </div>
+    <div id="error-msg"></div>
+    <button class="btn-primary" onclick="saveSettings()">接続してカレンダーを表示</button>
+  </div>
+</div>
+
+<!-- フィルターバー -->
+<div id="filter-bar">
+  <div class="filter-group">
+    <label>担当者</label>
+    <select id="assignee-filter" onchange="filterEvents()">
+      <option value="">全員</option>
+    </select>
+  </div>
+  <div class="filter-group">
+    <label>種別</label>
+    <select id="type-filter" onchange="filterEvents()">
+      <option value="">すべて</option>
+    </select>
+  </div>
+  <div id="legend"></div>
+</div>
+
+<!-- カレンダー -->
+<div id="calendar-wrapper">
+  <div id="loading" class="hidden">⏳ Backlogからデータを取得中...</div>
+  <div id="calendar"></div>
+</div>
+
+<!-- ポップアップ -->
+<div id="issue-popup">
+  <button class="close-btn" onclick="closePopup()">✕</button>
+  <div id="popup-content"></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/locales/ja.global.min.js"></script>
+<script>
+// ===== 媒体ごとの固定カラー =====
+const MEDIA_COLORS = {
+  'X':              '#eef0f1',
+  'Facebook':       '#e8f4fd',
+  'Instagram':      '#fef0f5',
+  'メルマガ':        '#fff5e6',
+  'LINE':           '#edf7ee',
+  'ブログ':          '#e6f9fb',
+  'PRTIME':         '#fef0f0',
+  'コーポレートサイト': '#eef0fa',
+  'YouTube':        '#fef0f0',
+  'TikTok':         '#f5f5f5',
+  'Xブログ':         '#f2f8ed',
+  'その他':          '#f5eefa',
+};
+const DEFAULT_COLORS = [
+  '#e8d5f5','#fde8e8','#fdefd5','#d5ede8','#d5e5f5',
+  '#f5d5ea','#e8ead5','#d5eaf5','#f5e8d5','#e5d5f5'
+];
+let dynamicColorIndex = 0;
+
+function getMediaColor(typeName) {
+  // 部分一致で検索
+  for (const [key, color] of Object.entries(MEDIA_COLORS)) {
+    if (typeName.includes(key)) return color;
+  }
+  // 未知の種別は動的に割り当て
+  if (!getMediaColor._cache) getMediaColor._cache = {};
+  if (!getMediaColor._cache[typeName]) {
+    getMediaColor._cache[typeName] = DEFAULT_COLORS[dynamicColorIndex++ % DEFAULT_COLORS.length];
+  }
+  return getMediaColor._cache[typeName];
+}
+
+// ===== 状態 =====
+let config = {};
+let calendar;
+let allEvents = [];
+let issueTypesMap = {}; // id -> {name, color}
+let timeFieldName = '';
+
+// ===== 設定 =====
+function loadConfig() {
+  const saved = localStorage.getItem('backlog-calendar-config');
+  if (saved) {
+    config = JSON.parse(saved);
+    if (config.spaceUrl && config.apiKey) {
+      document.getElementById('settings-panel').classList.add('hidden');
+      document.getElementById('space-url').value = config.spaceUrl;
+      document.getElementById('api-key').value = config.apiKey;
+      document.getElementById('project-key').value = config.projectKeys || '';
+      document.getElementById('time-field-name').value = config.timeFieldName || '';
+    }
+  }
+}
+function openSettings() {
+  document.getElementById('settings-panel').classList.remove('hidden');
+}
+function saveSettings() {
+  const spaceUrl = document.getElementById('space-url').value.trim().replace(/^https?:\/\//, '').replace(/\/$/, '');
+  const apiKey = document.getElementById('api-key').value.trim();
+  const projectKeys = document.getElementById('project-key').value.trim();
+  const timeFieldNameVal = document.getElementById('time-field-name').value.trim();
+  const errEl = document.getElementById('error-msg');
+  if (!spaceUrl || !apiKey) {
+    errEl.textContent = 'スペースURLとAPIキーは必須です。';
+    errEl.style.display = 'block';
+    return;
+  }
+  errEl.style.display = 'none';
+  config = { spaceUrl, apiKey, projectKeys, timeFieldName: timeFieldNameVal };
+  localStorage.setItem('backlog-calendar-config', JSON.stringify(config));
+  document.getElementById('settings-panel').classList.add('hidden');
+  loadIssues();
+}
+
+// ===== API =====
+function apiUrl(path, params = {}) {
+  const p = new URLSearchParams({ apiKey: config.apiKey, _space: config.spaceUrl, _path: path, ...params });
+  return `/proxy?${p}`;
+}
+async function fetchAll(path, params = {}) {
+  let results = [], offset = 0;
+  while (true) {
+    const res = await fetch(apiUrl(path, { ...params, count: 100, offset }));
+    if (!res.ok) throw new Error(`APIエラー: ${res.status}`);
+    const data = await res.json();
+    if (!Array.isArray(data) || data.length === 0) break;
+    results = results.concat(data);
+    if (data.length < 100) break;
+    offset += 100;
+  }
+  return results;
+}
+
+// ===== データ取得 =====
+async function loadIssues() {
+  if (!config.spaceUrl || !config.apiKey) { openSettings(); return; }
+  timeFieldName = config.timeFieldName || '';
+
+  const loading = document.getElementById('loading');
+  loading.classList.remove('hidden');
+  document.getElementById('calendar').style.opacity = '0.4';
+
+  try {
+    // プロジェクト取得
+    const projects = await fetchAll('/projects');
+    let targetProjects = projects;
+    if (config.projectKeys) {
+      const keys = config.projectKeys.split(',').map(k => k.trim().toUpperCase());
+      targetProjects = projects.filter(p => keys.includes(p.projectKey.toUpperCase()));
+    }
+    if (targetProjects.length === 0) throw new Error('指定したプロジェクトが見つかりません');
+
+    // 課題取得
+    const params = {};
+    targetProjects.forEach((p, i) => params[`projectId[${i}]`] = p.id);
+    // 完了(statusId=4)を除外
+    params['statusId[0]'] = 1;
+    params['statusId[1]'] = 2;
+    params['statusId[2]'] = 3;
+    const issues = await fetchAll('/issues', params);
+
+    // 種別・担当者を課題から直接抽出
+    issueTypesMap = {};
+    dynamicColorIndex = 0;
+    if (getMediaColor._cache) getMediaColor._cache = {};
+
+    const assigneesMap = {};
+    issues.forEach(issue => {
+      if (issue.issueType) {
+        const t = issue.issueType;
+        if (!issueTypesMap[t.id]) {
+          issueTypesMap[t.id] = { name: t.name, color: getMediaColor(t.name) };
+        }
+      }
+      if (issue.assignee) {
+        assigneesMap[issue.assignee.id] = issue.assignee.name;
+      }
+    });
+
+    // 担当者フィルター更新
+    const assigneeSelect = document.getElementById('assignee-filter');
+    const savedAssignee = assigneeSelect.value;
+    assigneeSelect.innerHTML = '<option value="">全員</option>';
+    Object.entries(assigneesMap).sort((a, b) => a[1].localeCompare(b[1], 'ja')).forEach(([id, name]) => {
+      const opt = document.createElement('option');
+      opt.value = id; opt.textContent = name;
+      assigneeSelect.appendChild(opt);
+    });
+    if (savedAssignee) assigneeSelect.value = savedAssignee;
+
+    // 種別フィルター更新
+    const typeSelect = document.getElementById('type-filter');
+    const savedType = typeSelect.value;
+    typeSelect.innerHTML = '<option value="">すべて</option>';
+    Object.entries(issueTypesMap).sort((a, b) => a[1].name.localeCompare(b[1].name, 'ja')).forEach(([id, type]) => {
+      const opt = document.createElement('option');
+      opt.value = id; opt.textContent = type.name;
+      typeSelect.appendChild(opt);
+    });
+    if (savedType) typeSelect.value = savedType;
+
+    // 凡例更新
+    const legend = document.getElementById('legend');
+    legend.innerHTML = '';
+    Object.values(issueTypesMap).sort((a, b) => a.name.localeCompare(b.name, 'ja')).forEach(type => {
+      const item = document.createElement('div');
+      item.className = 'legend-item';
+      item.innerHTML = `<div class="legend-dot" style="background:${type.color}"></div><span>${type.name}</span>`;
+      legend.appendChild(item);
+    });
+
+    // イベント変換
+    allEvents = issues
+      .filter(issue => issue.dueDate)
+      .map(issue => {
+        const typeId = issue.issueType?.id;
+        const typeInfo = issueTypesMap[typeId];
+        const color = typeInfo?.color || '#9e9e9e';
+
+        // 配信時間をカスタム属性から取得
+        let deliveryTime = '';
+        if (Array.isArray(issue.customFields)) {
+          console.log('customFields for', issue.issueKey, JSON.stringify(issue.customFields));
+          if (timeFieldName) {
+            const field = issue.customFields.find(f => f.name?.trim() === timeFieldName.trim());
+            if (field) {
+              const v = field.value;
+              if (v !== null && v !== undefined && v !== '') {
+                deliveryTime = typeof v === 'object' ? (v.name || JSON.stringify(v)) : String(v);
+              }
+            }
+          }
+        }
+
+        const timePrefix = deliveryTime ? `${deliveryTime} ` : '';
+        return {
+          id: issue.id,
+          title: `${timePrefix}${issue.summary}`,
+          start: issue.dueDate.split('T')[0],
+          backgroundColor: color,
+          borderColor: color,
+          textColor: '#333',
+          extendedProps: {
+            issueKey: issue.issueKey,
+            typeId: String(typeId || ''),
+            typeName: typeInfo?.name || '',
+            typeColor: color,
+            assigneeId: issue.assignee ? String(issue.assignee.id) : '',
+            assigneeName: issue.assignee?.name || '未割り当て',
+            status: issue.status?.name || '',
+            priority: issue.priority?.name || '',
+            deliveryTime,
+            summary: issue.summary,
+          }
+        };
+      });
+
+    filterEvents();
+
+  } catch (e) {
+    alert('データ取得に失敗しました: ' + e.message);
+    openSettings();
+  } finally {
+    loading.classList.add('hidden');
+    document.getElementById('calendar').style.opacity = '1';
+  }
+}
+
+function filterEvents() {
+  const assigneeId = document.getElementById('assignee-filter').value;
+  const typeId = document.getElementById('type-filter').value;
+  const filtered = allEvents.filter(ev => {
+    if (assigneeId && ev.extendedProps.assigneeId !== assigneeId) return false;
+    if (typeId && ev.extendedProps.typeId !== typeId) return false;
+    return true;
+  });
+  calendar.removeAllEvents();
+  calendar.addEventSource(filtered);
+}
+
+// ===== ポップアップ =====
+function showPopup(info) {
+  const popup = document.getElementById('issue-popup');
+  const p = info.event.extendedProps;
+
+  let timeHtml = '';
+  if (p.deliveryTime) {
+    timeHtml = `<div class="popup-time">🕐 ${p.deliveryTime}</div>`;
+  }
+
+  document.getElementById('popup-content').innerHTML = `
+    <div style="margin-bottom:8px">
+      <span class="popup-badge" style="background:${p.typeColor}">${p.typeName || '種別なし'}</span>
+    </div>
+    ${timeHtml}
+    <div class="popup-header">
+      <div class="popup-type-bar" style="background:${p.typeColor}"></div>
+      <div class="popup-title">${p.summary}</div>
+    </div>
+    <div class="popup-meta">
+      📋 <strong>${p.issueKey}</strong><br>
+      👤 ${p.assigneeName}<br>
+      📌 ${p.status}<br>
+      📅 ${info.event.startStr}
+    </div>
+    <a class="popup-link" href="https://${config.spaceUrl}/view/${p.issueKey}" target="_blank">Backlogで開く →</a>
+  `;
+
+  const rect = info.el.getBoundingClientRect();
+  popup.style.display = 'block';
+  let left = rect.left + window.scrollX;
+  let top = rect.bottom + window.scrollY + 8;
+  if (left + 370 > window.innerWidth) left = window.innerWidth - 380;
+  if (top + 280 > window.innerHeight + window.scrollY) top = rect.top + window.scrollY - 290;
+  popup.style.left = Math.max(8, left) + 'px';
+  popup.style.top = Math.max(8, top) + 'px';
+}
+function closePopup() {
+  document.getElementById('issue-popup').style.display = 'none';
+}
+document.addEventListener('click', e => {
+  if (!document.getElementById('issue-popup').contains(e.target) && !e.target.closest('.fc-event')) {
+    closePopup();
+  }
+});
+
+// ===== カレンダー初期化 =====
+document.addEventListener('DOMContentLoaded', () => {
+  loadConfig();
+  calendar = new FullCalendar.Calendar(document.getElementById('calendar'), {
+    locale: 'ja',
+    initialView: 'dayGridMonth',
+    headerToolbar: {
+      left: 'prev,next today',
+      center: 'title',
+      right: 'dayGridMonth,dayGridWeek,listMonth'
+    },
+    buttonText: { today: '今日', month: '月', week: '週', list: 'リスト' },
+    eventClick: showPopup,
+    eventDidMount(info) {
+      const p = info.event.extendedProps;
+      info.el.title = `[${p.typeName}] ${p.summary}\n担当: ${p.assigneeName}`;
+    },
+    height: 'auto',
+    dayMaxEvents: true,
+  });
+  calendar.render();
+  if (config.spaceUrl && config.apiKey) loadIssues();
+});
+</script>
+</body>
+</html>
