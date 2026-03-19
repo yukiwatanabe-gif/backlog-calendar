@@ -268,7 +268,19 @@ let issueTypesMap = {}; // id -> {name, color}
 let timeFieldName = '';
 
 // ===== 設定 =====
-function loadConfig() {
+async function loadConfig() {
+  // サーバーの環境変数から設定を取得（Railway用）
+  try {
+    const res = await fetch('/config');
+    const serverConfig = await res.json();
+    if (serverConfig.spaceUrl && serverConfig.apiKey) {
+      config = serverConfig;
+      document.getElementById('settings-panel').classList.add('hidden');
+      return;
+    }
+  } catch(e) {}
+
+  // ローカルのlocalStorageから設定を取得
   const saved = localStorage.getItem('backlog-calendar-config');
   if (saved) {
     config = JSON.parse(saved);
@@ -535,7 +547,9 @@ document.addEventListener('DOMContentLoaded', () => {
     dayMaxEvents: true,
   });
   calendar.render();
-  if (config.spaceUrl && config.apiKey) loadIssues();
+  loadConfig().then(() => {
+    if (config.spaceUrl && config.apiKey) loadIssues();
+  });
 });
 </script>
 </body>

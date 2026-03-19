@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const url = require('url');
 
-const PORT = 3456;
+const PORT = process.env.PORT || 3456;
 
 function proxyBacklog(req, res, parsedUrl) {
   const params = new URLSearchParams(parsedUrl.query);
@@ -39,6 +39,18 @@ const server = http.createServer((req, res) => {
   if (req.method === 'OPTIONS') {
     res.writeHead(204, { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*' });
     res.end();
+    return;
+  }
+
+  // サーバー設定を返す
+  if (parsedUrl.pathname === '/config') {
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+    res.end(JSON.stringify({
+      spaceUrl:      process.env.BACKLOG_SPACE_URL   || '',
+      apiKey:        process.env.BACKLOG_API_KEY     || '',
+      projectKeys:   process.env.BACKLOG_PROJECT_KEY || '',
+      timeFieldName: process.env.BACKLOG_TIME_FIELD  || '',
+    }));
     return;
   }
 
