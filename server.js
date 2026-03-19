@@ -72,7 +72,7 @@ const server = http.createServer((req, res) => {
   });
 });
 
-server.listen(PORT, () => {
+server.listen(PORT, '0.0.0.0', () => {
   console.log(`✅ Backlogカレンダー起動中: http://localhost:${PORT}`);
   console.log('   停止するには Ctrl+C');
 
