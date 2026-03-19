@@ -76,7 +76,9 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`✅ Backlogカレンダー起動中: http://localhost:${PORT}`);
   console.log('   停止するには Ctrl+C');
 
-  // ブラウザを自動で開く
-  const { exec } = require('child_process');
-  exec(`start http://localhost:${PORT}`);
+  // ブラウザを自動で開く（Windowsのみ）
+  if (process.platform === 'win32') {
+    const { exec } = require('child_process');
+    exec(`start http://localhost:${PORT}`);
+  }
 });
