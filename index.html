@@ -411,9 +411,13 @@ async function loadIssues() {
       legend.appendChild(item);
     });
 
+    // 除外する種別
+    const EXCLUDED_TYPES = ['ストア', '店舗OPEN/CLOSE'];
+
     // イベント変換
     allEvents = issues
       .filter(issue => issue.dueDate)
+      .filter(issue => !EXCLUDED_TYPES.includes(issue.issueType?.name))
       .map(issue => {
         const typeId = issue.issueType?.id;
         const typeInfo = issueTypesMap[typeId];
@@ -435,10 +439,14 @@ async function loadIssues() {
         }
 
         const timePrefix = deliveryTime ? `${deliveryTime} ` : '';
+        const dateStr = issue.dueDate.split('T')[0];
+        const startStr = deliveryTime && /^\d{1,2}:\d{2}$/.test(deliveryTime.trim())
+          ? `${dateStr}T${deliveryTime.trim().padStart(5,'0')}:00`
+          : dateStr;
         return {
           id: issue.id,
           title: `${timePrefix}${issue.summary}`,
-          start: issue.dueDate.split('T')[0],
+          start: startStr,
           backgroundColor: color,
           borderColor: color,
           textColor: '#333',
