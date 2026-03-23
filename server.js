@@ -32,6 +32,21 @@ function proxyBacklog(req, res, parsedUrl) {
   });
 }
 
+const CALENDAR_PASSWORD = process.env.CALENDAR_PASSWORD || '';
+
+function checkAuth(req, res) {
+  if (!CALENDAR_PASSWORD) return true; // パスワード未設定なら認証スキップ
+  const auth = req.headers['authorization'] || '';
+  if (auth.startsWith('Basic ')) {
+    const decoded = Buffer.from(auth.slice(6), 'base64').toString();
+    const [, pass] = decoded.split(':');
+    if (pass === CALENDAR_PASSWORD) return true;
+  }
+  res.writeHead(401, { 'WWW-Authenticate': 'Basic realm="Backlog Calendar"' });
+  res.end('認証が必要です');
+  return false;
+}
+
 const server = http.createServer((req, res) => {
   const parsedUrl = url.parse(req.url, true);
 
@@ -41,6 +56,9 @@ const server = http.createServer((req, res) => {
     res.end();
     return;
   }
+
+  // 認証チェック
+  if (!checkAuth(req, res)) return;
 
   // サーバー設定を返す
   if (parsedUrl.pathname === '/config') {
