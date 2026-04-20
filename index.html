@@ -13,7 +13,6 @@
       color: #333;
     }
 
-    /* ヘッダー */
     header {
       background: #fff;
       border-bottom: 2px solid #e8eaed;
@@ -36,7 +35,6 @@
     }
     .header-btn:hover { background: #e2e5ea; }
 
-    /* 設定パネル */
     #settings-panel {
       position: fixed;
       inset: 0;
@@ -77,7 +75,6 @@
       font-size: 13px; display: none;
     }
 
-    /* フィルターバー */
     #filter-bar {
       background: #fff;
       border-bottom: 1px solid #e8eaed;
@@ -96,7 +93,6 @@
     }
     #filter-bar select:focus { outline: none; border-color: #4f8ef7; }
 
-    /* 凡例 */
     #legend {
       display: flex; gap: 8px; flex-wrap: wrap;
       margin-left: auto; align-items: center;
@@ -109,12 +105,10 @@
     }
     .legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
 
-    /* カレンダーエリア */
     #calendar-wrapper { padding: 20px 24px; }
     #loading { text-align: center; padding: 60px; color: #aaa; font-size: 15px; }
     #loading.hidden { display: none; }
 
-    /* FullCalendar */
     .fc {
       background: #fff; border-radius: 12px;
       box-shadow: 0 2px 12px rgba(0,0,0,0.06); padding: 20px;
@@ -128,7 +122,6 @@
     .fc-col-header-cell { font-size: 13px; font-weight: 700; color: #555; }
     .fc-daygrid-day-number { font-size: 13px; color: #333; }
 
-    /* ポップアップ */
     #issue-popup {
       position: fixed; background: #fff; border-radius: 12px;
       box-shadow: 0 8px 36px rgba(0,0,0,0.16); padding: 20px 22px;
@@ -165,8 +158,7 @@
   <button class="header-btn" onclick="openSettings()">⚙️ 設定</button>
 </header>
 
-<!-- 設定パネル -->
-<div id="settings-panel">
+<div id="settings-panel" class="hidden">
   <div class="settings-box">
     <h2>⚙️ Backlog 接続設定</h2>
     <div class="field">
@@ -194,7 +186,6 @@
   </div>
 </div>
 
-<!-- フィルターバー -->
 <div id="filter-bar">
   <div class="filter-group">
     <label>担当者</label>
@@ -211,13 +202,11 @@
   <div id="legend"></div>
 </div>
 
-<!-- カレンダー -->
 <div id="calendar-wrapper">
   <div id="loading" class="hidden">⏳ Backlogからデータを取得中...</div>
   <div id="calendar"></div>
 </div>
 
-<!-- ポップアップ -->
 <div id="issue-popup">
   <button class="close-btn" onclick="closePopup()">✕</button>
   <div id="popup-content"></div>
@@ -226,7 +215,6 @@
 <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/locales/ja.global.min.js"></script>
 <script>
-// ===== 媒体ごとの固定カラー =====
 const MEDIA_COLORS = {
   'X':              '#eef0f1',
   'Facebook':       '#e8f4fd',
@@ -248,11 +236,9 @@ const DEFAULT_COLORS = [
 let dynamicColorIndex = 0;
 
 function getMediaColor(typeName) {
-  // 部分一致で検索
   for (const [key, color] of Object.entries(MEDIA_COLORS)) {
     if (typeName.includes(key)) return color;
   }
-  // 未知の種別は動的に割り当て
   if (!getMediaColor._cache) getMediaColor._cache = {};
   if (!getMediaColor._cache[typeName]) {
     getMediaColor._cache[typeName] = DEFAULT_COLORS[dynamicColorIndex++ % DEFAULT_COLORS.length];
@@ -260,42 +246,31 @@ function getMediaColor(typeName) {
   return getMediaColor._cache[typeName];
 }
 
-// ===== 状態 =====
 let config = {};
 let calendar;
 let allEvents = [];
-let issueTypesMap = {}; // id -> {name, color}
+let issueTypesMap = {};
 let timeFieldName = '';
 
-// ===== 設定 =====
-async function loadConfig() {
-  // サーバーの環境変数から設定を取得（Railway用）
-  try {
-    const res = await fetch('/config');
-    const serverConfig = await res.json();
-    if (serverConfig.spaceUrl && serverConfig.apiKey) {
-      config = serverConfig;
-      document.getElementById('settings-panel').classList.add('hidden');
-      return;
-    }
-  } catch(e) {}
-
-  // ローカルのlocalStorageから設定を取得
+function loadConfig() {
   const saved = localStorage.getItem('backlog-calendar-config');
   if (saved) {
     config = JSON.parse(saved);
     if (config.spaceUrl && config.apiKey) {
-      document.getElementById('settings-panel').classList.add('hidden');
       document.getElementById('space-url').value = config.spaceUrl;
       document.getElementById('api-key').value = config.apiKey;
       document.getElementById('project-key').value = config.projectKeys || '';
       document.getElementById('time-field-name').value = config.timeFieldName || '';
+      return;
     }
   }
+  document.getElementById('settings-panel').classList.remove('hidden');
 }
+
 function openSettings() {
   document.getElementById('settings-panel').classList.remove('hidden');
 }
+
 function saveSettings() {
   const spaceUrl = document.getElementById('space-url').value.trim().replace(/^https?:\/\//, '').replace(/\/$/, '');
   const apiKey = document.getElementById('api-key').value.trim();
@@ -314,11 +289,11 @@ function saveSettings() {
   loadIssues();
 }
 
-// ===== API =====
 function apiUrl(path, params = {}) {
-  const p = new URLSearchParams({ apiKey: config.apiKey, _space: config.spaceUrl, _path: path, ...params });
-  return `/proxy?${p}`;
+  const p = new URLSearchParams({ apiKey: config.apiKey, ...params });
+  return `https://${config.spaceUrl}/api/v2${path}?${p}`;
 }
+
 async function fetchAll(path, params = {}) {
   let results = [], offset = 0;
   while (true) {
@@ -333,7 +308,6 @@ async function fetchAll(path, params = {}) {
   return results;
 }
 
-// ===== データ取得 =====
 async function loadIssues() {
   if (!config.spaceUrl || !config.apiKey) { openSettings(); return; }
   timeFieldName = config.timeFieldName || '';
@@ -343,7 +317,6 @@ async function loadIssues() {
   document.getElementById('calendar').style.opacity = '0.4';
 
   try {
-    // プロジェクト取得
     const projects = await fetchAll('/projects');
     let targetProjects = projects;
     if (config.projectKeys) {
@@ -352,16 +325,13 @@ async function loadIssues() {
     }
     if (targetProjects.length === 0) throw new Error('指定したプロジェクトが見つかりません');
 
-    // 課題取得
     const params = {};
     targetProjects.forEach((p, i) => params[`projectId[${i}]`] = p.id);
-    // 完了(statusId=4)を除外
     params['statusId[0]'] = 1;
     params['statusId[1]'] = 2;
     params['statusId[2]'] = 3;
     const issues = await fetchAll('/issues', params);
 
-    // 種別・担当者を課題から直接抽出
     issueTypesMap = {};
     dynamicColorIndex = 0;
     if (getMediaColor._cache) getMediaColor._cache = {};
@@ -379,7 +349,6 @@ async function loadIssues() {
       }
     });
 
-    // 担当者フィルター更新
     const assigneeSelect = document.getElementById('assignee-filter');
     const savedAssignee = assigneeSelect.value;
     assigneeSelect.innerHTML = '<option value="">全員</option>';
@@ -390,7 +359,6 @@ async function loadIssues() {
     });
     if (savedAssignee) assigneeSelect.value = savedAssignee;
 
-    // 種別フィルター更新
     const typeSelect = document.getElementById('type-filter');
     const savedType = typeSelect.value;
     typeSelect.innerHTML = '<option value="">すべて</option>';
@@ -401,7 +369,6 @@ async function loadIssues() {
     });
     if (savedType) typeSelect.value = savedType;
 
-    // 凡例更新
     const legend = document.getElementById('legend');
     legend.innerHTML = '';
     Object.values(issueTypesMap).sort((a, b) => a.name.localeCompare(b.name, 'ja')).forEach(type => {
@@ -411,10 +378,7 @@ async function loadIssues() {
       legend.appendChild(item);
     });
 
-    // 除外する種別
     const EXCLUDED_TYPES = ['ストア', '店舗OPEN/CLOSE'];
-
-    // イベント変換
     allEvents = issues
       .filter(issue => issue.dueDate)
       .filter(issue => !EXCLUDED_TYPES.includes(issue.issueType?.name))
@@ -423,17 +387,13 @@ async function loadIssues() {
         const typeInfo = issueTypesMap[typeId];
         const color = typeInfo?.color || '#9e9e9e';
 
-        // 配信時間をカスタム属性から取得
         let deliveryTime = '';
-        if (Array.isArray(issue.customFields)) {
-          console.log('customFields for', issue.issueKey, JSON.stringify(issue.customFields));
-          if (timeFieldName) {
-            const field = issue.customFields.find(f => f.name?.trim() === timeFieldName.trim());
-            if (field) {
-              const v = field.value;
-              if (v !== null && v !== undefined && v !== '') {
-                deliveryTime = typeof v === 'object' ? (v.name || JSON.stringify(v)) : String(v);
-              }
+        if (Array.isArray(issue.customFields) && timeFieldName) {
+          const field = issue.customFields.find(f => f.name?.trim() === timeFieldName.trim());
+          if (field) {
+            const v = field.value;
+            if (v !== null && v !== undefined && v !== '') {
+              deliveryTime = typeof v === 'object' ? (v.name || JSON.stringify(v)) : String(v);
             }
           }
         }
@@ -487,7 +447,6 @@ function filterEvents() {
   calendar.addEventSource(filtered);
 }
 
-// ===== ポップアップ =====
 function showPopup(info) {
   const popup = document.getElementById('issue-popup');
   const p = info.event.extendedProps;
@@ -524,18 +483,18 @@ function showPopup(info) {
   popup.style.left = Math.max(8, left) + 'px';
   popup.style.top = Math.max(8, top) + 'px';
 }
+
 function closePopup() {
   document.getElementById('issue-popup').style.display = 'none';
 }
+
 document.addEventListener('click', e => {
   if (!document.getElementById('issue-popup').contains(e.target) && !e.target.closest('.fc-event')) {
     closePopup();
   }
 });
 
-// ===== カレンダー初期化 =====
 document.addEventListener('DOMContentLoaded', () => {
-  loadConfig();
   calendar = new FullCalendar.Calendar(document.getElementById('calendar'), {
     locale: 'ja',
     initialView: 'dayGridMonth',
@@ -554,9 +513,8 @@ document.addEventListener('DOMContentLoaded', () => {
     dayMaxEvents: true,
   });
   calendar.render();
-  loadConfig().then(() => {
-    if (config.spaceUrl && config.apiKey) loadIssues();
-  });
+  loadConfig();
+  if (config.spaceUrl && config.apiKey) loadIssues();
 });
 </script>
 </body>
