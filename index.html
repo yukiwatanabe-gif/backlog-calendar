@@ -307,6 +307,13 @@ function getMediaColor(typeName) {
   return getMediaColor._cache[typeName];
 }
 
+const DEFAULT_CONFIG = {
+  spaceUrl: 'yogibo.backlog.com',
+  apiKey: 'FEc4RErfA55j5SLAGXX6orqX5oPLkym3PwJStEk7GTQ4CLo44ZcAB6l3B1v1N023',
+  projectKeys: 'PRYOGIBO',
+  timeFieldName: '配信時間',
+};
+
 let config = {};
 let calendar;
 let allEvents = [];
@@ -315,17 +322,11 @@ let timeFieldName = '';
 
 function loadConfig() {
   const saved = localStorage.getItem('backlog-calendar-config');
-  if (saved) {
-    config = JSON.parse(saved);
-    if (config.spaceUrl && config.apiKey) {
-      document.getElementById('space-url').value = config.spaceUrl;
-      document.getElementById('api-key').value = config.apiKey;
-      document.getElementById('project-key').value = config.projectKeys || '';
-      document.getElementById('time-field-name').value = config.timeFieldName || '';
-      return;
-    }
-  }
-  document.getElementById('settings-panel').classList.remove('hidden');
+  config = saved ? JSON.parse(saved) : DEFAULT_CONFIG;
+  document.getElementById('space-url').value = config.spaceUrl;
+  document.getElementById('api-key').value = config.apiKey;
+  document.getElementById('project-key').value = config.projectKeys || '';
+  document.getElementById('time-field-name').value = config.timeFieldName || '';
 }
 
 function openSettings() {
