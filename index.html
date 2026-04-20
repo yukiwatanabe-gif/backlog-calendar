@@ -6,6 +6,32 @@
   <title>Backlog カレンダー</title>
   <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.css" rel="stylesheet">
   <style>
+    #password-gate {
+      position: fixed; inset: 0; background: #f0f2f5;
+      display: flex; align-items: center; justify-content: center; z-index: 9999;
+    }
+    #password-gate.hidden { display: none; }
+    .pw-box {
+      background: #fff; border-radius: 14px; padding: 36px 32px;
+      width: 360px; max-width: 95vw;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.12); text-align: center;
+    }
+    .pw-box h2 { font-size: 18px; font-weight: 700; margin-bottom: 8px; color: #1a1a2e; }
+    .pw-box p { font-size: 13px; color: #888; margin-bottom: 20px; }
+    .pw-box input {
+      width: 100%; border: 1.5px solid #e0e3e8; border-radius: 8px;
+      padding: 11px 14px; font-size: 15px; margin-bottom: 12px;
+      background: #fafbfc; text-align: center; letter-spacing: 0.1em;
+    }
+    .pw-box input:focus { outline: none; border-color: #4f8ef7; }
+    .pw-box button {
+      width: 100%; background: #4f8ef7; color: #fff; border: none;
+      border-radius: 8px; padding: 12px; font-size: 15px; font-weight: 700;
+      cursor: pointer;
+    }
+    .pw-box button:hover { background: #3a7de0; }
+    .pw-error { color: #c62828; font-size: 13px; margin-top: 8px; display: none; }
+
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN", "Meiryo", sans-serif;
@@ -152,6 +178,16 @@
 </head>
 <body>
 
+<div id="password-gate">
+  <div class="pw-box">
+    <h2>📅 Backlog 配信カレンダー</h2>
+    <p>パスワードを入力してください</p>
+    <input type="password" id="pw-input" placeholder="password" onkeydown="if(event.key==='Enter')checkPassword()">
+    <button onclick="checkPassword()">ログイン</button>
+    <div class="pw-error" id="pw-error">パスワードが違います</div>
+  </div>
+</div>
+
 <header>
   <h1>📅 Backlog 配信カレンダー</h1>
   <button class="header-btn" onclick="loadIssues()">🔄 更新</button>
@@ -215,6 +251,31 @@
 <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/locales/ja.global.min.js"></script>
 <script>
+const PASSWORD_HASH = '48edfd92428d546585f0c9b016a263937cab762b29f7b8ad339caf1e436f5a04';
+
+async function sha256(str) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+}
+
+async function checkPassword() {
+  const val = document.getElementById('pw-input').value;
+  const hash = await sha256(val);
+  if (hash === PASSWORD_HASH) {
+    sessionStorage.setItem('auth', '1');
+    document.getElementById('password-gate').classList.add('hidden');
+  } else {
+    document.getElementById('pw-error').style.display = 'block';
+    document.getElementById('pw-input').value = '';
+  }
+}
+
+function checkAuth() {
+  if (sessionStorage.getItem('auth') === '1') {
+    document.getElementById('password-gate').classList.add('hidden');
+  }
+}
+
 const MEDIA_COLORS = {
   'X':              '#eef0f1',
   'Facebook':       '#e8f4fd',
@@ -495,6 +556,7 @@ document.addEventListener('click', e => {
 });
 
 document.addEventListener('DOMContentLoaded', () => {
+  checkAuth();
   calendar = new FullCalendar.Calendar(document.getElementById('calendar'), {
     locale: 'ja',
     initialView: 'dayGridMonth',
