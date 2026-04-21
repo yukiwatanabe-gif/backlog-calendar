@@ -310,9 +310,16 @@ function getMediaColor(typeName) {
 const DEFAULT_CONFIG = {
   spaceUrl: 'yogibo.backlog.com',
   apiKey: 'FEc4RErfA55j5SLAGXX6orqX5oPLkym3PwJStEk7GTQ4CLo44ZcAB6l3B1v1N023',
-  projectKeys: 'PRYOGIBO',
+  projectKeys: '447191',
   timeFieldName: '配信時間',
 };
+
+const INCLUDED_TYPES = [
+  '[プロモーション] 配信依頼', '[店舗OPEN/CLOSE] 配信依頼',
+  'Facebook', 'Instagram', 'LINE', 'PRTIMES', 'TikTok',
+  'VMD', 'X', 'コーポレートサイト', 'タスク', 'ブログ', 'メルマガ',
+  '通常企画', '販促企画',
+];
 
 let config = {};
 let calendar;
@@ -356,7 +363,7 @@ function apiUrl(path, params = {}) {
   return `https://${config.spaceUrl}/api/v2${path}?${p}`;
 }
 
-async function fetchAll(path, params = {}) {
+async function fetchAll(path, params = {}, maxResults = 1000) {
   let results = [], offset = 0;
   while (true) {
     const res = await fetch(apiUrl(path, { ...params, count: 100, offset }));
@@ -364,7 +371,7 @@ async function fetchAll(path, params = {}) {
     const data = await res.json();
     if (!Array.isArray(data) || data.length === 0) break;
     results = results.concat(data);
-    if (data.length < 100) break;
+    if (data.length < 100 || results.length >= maxResults) break;
     offset += 100;
   }
   return results;
@@ -379,20 +386,24 @@ async function loadIssues() {
   document.getElementById('calendar').style.opacity = '0.4';
 
   try {
-    const projects = await fetchAll('/projects');
-    let targetProjects = projects;
-    if (config.projectKeys) {
-      const keys = config.projectKeys.split(',').map(k => k.trim().toUpperCase());
-      targetProjects = projects.filter(p => keys.includes(p.projectKey.toUpperCase()));
-    }
-    if (targetProjects.length === 0) throw new Error('指定したプロジェクトが見つかりません');
-
     const params = {};
-    targetProjects.forEach((p, i) => params[`projectId[${i}]`] = p.id);
-    params['statusId[0]'] = 1;
-    params['statusId[1]'] = 2;
-    params['statusId[2]'] = 3;
-    const issues = await fetchAll('/issues', params);
+    const rawKeys = (config.projectKeys || '447191').split(',').map(k => k.trim()).filter(Boolean);
+    if (rawKeys.every(k => /^\d+$/.test(k))) {
+      rawKeys.forEach((id, i) => params[`projectId[${i}]`] = id);
+    } else {
+      const projects = await fetchAll('/projects', {}, 500);
+      const upperKeys = rawKeys.map(k => k.toUpperCase());
+      const targetProjects = projects.filter(p => upperKeys.includes(p.projectKey.toUpperCase()));
+      if (targetProjects.length === 0) throw new Error('指定したプロジェクトが見つかりません');
+      targetProjects.forEach((p, i) => params[`projectId[${i}]`] = p.id);
+    }
+    const now = new Date();
+    const since = new Date(now); since.setMonth(since.getMonth() - 2);
+    const until = new Date(now); until.setMonth(until.getMonth() + 6);
+    params['dueDateSince'] = since.toISOString().split('T')[0];
+    params['dueDateUntil'] = until.toISOString().split('T')[0];
+    const issues = (await fetchAll('/issues', params))
+      .filter(issue => !['中止', '処理済み', '完了'].includes(issue.status?.name));
 
     issueTypesMap = {};
     dynamicColorIndex = 0;
@@ -400,13 +411,13 @@ async function loadIssues() {
 
     const assigneesMap = {};
     issues.forEach(issue => {
-      if (issue.issueType) {
+      if (issue.issueType && INCLUDED_TYPES.includes(issue.issueType.name)) {
         const t = issue.issueType;
         if (!issueTypesMap[t.id]) {
           issueTypesMap[t.id] = { name: t.name, color: getMediaColor(t.name) };
         }
       }
-      if (issue.assignee) {
+      if (issue.assignee && INCLUDED_TYPES.includes(issue.issueType?.name)) {
         assigneesMap[issue.assignee.id] = issue.assignee.name;
       }
     });
@@ -424,26 +435,28 @@ async function loadIssues() {
     const typeSelect = document.getElementById('type-filter');
     const savedType = typeSelect.value;
     typeSelect.innerHTML = '<option value="">すべて</option>';
-    Object.entries(issueTypesMap).sort((a, b) => a[1].name.localeCompare(b[1].name, 'ja')).forEach(([id, type]) => {
+    INCLUDED_TYPES.forEach(name => {
+      const entry = Object.entries(issueTypesMap).find(([, t]) => t.name === name);
       const opt = document.createElement('option');
-      opt.value = id; opt.textContent = type.name;
+      opt.value = entry ? entry[0] : name;
+      opt.textContent = name;
       typeSelect.appendChild(opt);
     });
     if (savedType) typeSelect.value = savedType;
 
     const legend = document.getElementById('legend');
     legend.innerHTML = '';
-    Object.values(issueTypesMap).sort((a, b) => a.name.localeCompare(b.name, 'ja')).forEach(type => {
+    INCLUDED_TYPES.forEach(name => {
+      const color = getMediaColor(name);
       const item = document.createElement('div');
       item.className = 'legend-item';
-      item.innerHTML = `<div class="legend-dot" style="background:${type.color}"></div><span>${type.name}</span>`;
+      item.innerHTML = `<div class="legend-dot" style="background:${color}"></div><span>${name}</span>`;
       legend.appendChild(item);
     });
 
-    const EXCLUDED_TYPES = ['ストア', '店舗OPEN/CLOSE'];
     allEvents = issues
-      .filter(issue => issue.dueDate)
-      .filter(issue => !EXCLUDED_TYPES.includes(issue.issueType?.name))
+      .filter(issue => issue.dueDate || issue.startDate)
+      .filter(issue => INCLUDED_TYPES.includes(issue.issueType?.name))
       .map(issue => {
         const typeId = issue.issueType?.id;
         const typeInfo = issueTypesMap[typeId];
@@ -460,7 +473,7 @@ async function loadIssues() {
           }
         }
 
-        const dateStr = issue.dueDate.split('T')[0];
+        const dateStr = (issue.dueDate || issue.startDate).split('T')[0];
         const startStr = deliveryTime && /^\d{1,2}:\d{2}$/.test(deliveryTime.trim())
           ? `${dateStr}T${deliveryTime.trim().padStart(5,'0')}:00`
           : dateStr;
